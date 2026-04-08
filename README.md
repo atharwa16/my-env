@@ -1,3 +1,11 @@
+---
+title: Support Ticket Triage
+emoji: 🎫
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
 # Customer Support Ticket Triage — RL Environment
 
 An OpenEnv-compliant reinforcement learning environment where an agent learns to triage customer support tickets by assigning a category, priority level, and response.
