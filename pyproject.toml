@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "support-ticket-triage"
+version = "1.0.0"
+description = "Customer Support Ticket Triage Environment for OpenEnv"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi==0.115.0",
+    "uvicorn==0.30.6",
+    "pydantic==2.9.2",
+    "openai>=1.0.0"
+]
