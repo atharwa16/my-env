@@ -1,0 +1,45 @@
+name: support-ticket-triage
+description: >
+  Customer support ticket triage environment.
+  The agent must classify tickets by category and priority,
+  and provide a relevant response snippet.
+
+version: "1.0.0"
+
+environment:
+  dockerfile: Dockerfile
+  port: 7860
+  health_check: /health
+
+endpoints:
+  reset:
+    method: POST
+    path: /reset
+    description: Reset the environment and get the first observation.
+  step:
+    method: POST
+    path: /step
+    description: Submit triage action and receive reward + next observation.
+  state:
+    method: GET
+    path: /state
+    description: Get current environment state.
+
+inference:
+  script: inference.py
+  timeout_seconds: 60
+
+tasks:
+  count: 3
+  difficulties:
+    - easy
+    - medium
+    - hard
+
+scoring:
+  min_reward: 0.0
+  max_reward: 1.0
+  breakdown:
+    category_match: 0.4
+    priority_match: 0.3
+    response_keyword_match: 0.3
