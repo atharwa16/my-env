@@ -13,20 +13,16 @@ from support_env import SupportTriageEnv
 
 TASK_NAME = "support-ticket-triage"
 ENV_NAME = "support-triage-env"
-MODEL_NAME = os.getenv("MODEL_NAME", "gemini-1.5-pro")
+API_BASE_URL = os.getenv("API_BASE_URL", "<your-active-endpoint>")
+MODEL_NAME = os.getenv("MODEL_NAME", "<your-active-model>")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
-# Configure OpenAI client pointing to the environment API endpoint.
-# Defaults to OpenAI's endpoint if API_BASE_URL is missing, or whatever proxy is used.
-API_BASE_URL = os.getenv("API_BASE_URL")
-if API_BASE_URL and not API_BASE_URL.endswith('/v1'):
-    # Some platforms require /v1 suffix for OpenAI compatibility
-    if not API_BASE_URL.endswith('/'):
-        API_BASE_URL += '/'
-    API_BASE_URL += 'v1'
+# Optional — if you use from_docker_image():
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
 client = OpenAI(
     base_url=API_BASE_URL,
-    api_key=os.getenv("HF_TOKEN", os.getenv("OPENAI_API_KEY", "dummy-key"))
+    api_key=HF_TOKEN
 )
 
 
