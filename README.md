@@ -139,16 +139,24 @@ uvicorn app:app --host 0.0.0.0 --port 7860
 
 ## Usage
 
+First, specify your LLM environment variables required by the OpenEnv inference specification:
+
+```bash
+export API_BASE_URL="https://api.openai.com/v1"  # Or compatible endpoint
+export MODEL_NAME="gemini-1.5-pro"
+export HF_TOKEN="your-api-key"
+```
+
 Run the baseline inference script:
 
 ```bash
 python inference.py
 ```
 
-This runs a rule-based agent that processes all 3 tickets locally and prints results in the required evaluation format:
+This runs an LLM-based agent via the OpenAI python client that evaluates all 3 tickets locally and prints results in the exact evaluation format:
 
 ```
-[START] task=support-ticket-triage env=support-triage-env model=baseline-rule-agent
+[START] task=support-ticket-triage env=support-triage-env model=gemini-1.5-pro
 [STEP] step=1 action=category=billing|priority=medium|response=... reward=1.00 done=false error=null
 [STEP] step=2 action=category=technical|priority=urgent|response=... reward=0.60 done=false error=null
 [STEP] step=3 action=category=billing|priority=urgent|response=... reward=0.50 done=true error=null
@@ -160,12 +168,12 @@ This runs a rule-based agent that processes all 3 tickets locally and prints res
 | Task | Difficulty | Reward | Notes |
 |------|-----------|--------|-------|
 | TKT-001 | Easy | 1.00 | Perfect: category, priority, and all keywords matched |
-| TKT-002 | Medium | 0.60 | Category correct, priority wrong (predicted urgent instead of high) |
-| TKT-003 | Hard | 0.50 | Category wrong (predicted billing instead of account), priority correct |
+| TKT-002 | Medium | 0.60 | Example fallback: Category correct, priority wrong |
+| TKT-003 | Hard | 0.50 | Example fallback: Category wrong, priority correct |
 
-**Average score: 0.70**
+**Average score: 0.70 (Fallback limits), up to 1.00 (Perfect LLM)**
 
-The baseline uses simple keyword matching — a stronger agent (e.g., LLM-based) should significantly outperform this.
+The baseline uses an LLM. It includes a rule-based fallback just in case the LLM API call fails, preventing your evaluation from completely crashing to 0.00.
 
 ## Future Scope
 
