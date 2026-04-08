@@ -13,6 +13,12 @@ app = FastAPI(
 env = SupportTriageEnv()
 
 
+@app.get("/")
+def read_root():
+    """Root endpoint for Hugging Face Spaces."""
+    return {"message": "Support Ticket Triage Environment is running. Access /docs for the API reference."}
+
+
 @app.post("/reset", response_model=Observation)
 def reset():
     """Reset the environment and return the first observation."""
