@@ -1,39 +1,94 @@
-"""Baseline inference script for the Support Ticket Triage environment.
+"""LLM-based Baseline inference script for the Support Ticket Triage environment.
 
-Runs locally (no server needed) and prints logs in the required
-[START] / [STEP] / [END] format.
+Runs locally and queries an LLM to triage the ticket. 
+Prints logs in the required [START] / [STEP] / [END] format.
 """
 
+import os
+import json
+from openai import OpenAI
 from models import Action
 from support_env import SupportTriageEnv
 
 
 TASK_NAME = "support-ticket-triage"
 ENV_NAME = "support-triage-env"
-MODEL_NAME = "baseline-rule-agent"
+MODEL_NAME = os.getenv("MODEL_NAME", "gemini-1.5-pro")
+
+# Configure OpenAI client pointing to the environment API endpoint.
+# Defaults to OpenAI's endpoint if API_BASE_URL is missing, or whatever proxy is used.
+API_BASE_URL = os.getenv("API_BASE_URL")
+if API_BASE_URL and not API_BASE_URL.endswith('/v1'):
+    # Some platforms require /v1 suffix for OpenAI compatibility
+    if not API_BASE_URL.endswith('/'):
+        API_BASE_URL += '/'
+    API_BASE_URL += 'v1'
+
+client = OpenAI(
+    base_url=API_BASE_URL,
+    api_key=os.getenv("HF_TOKEN", os.getenv("OPENAI_API_KEY", "dummy-key"))
+)
 
 
-def make_baseline_action(observation) -> Action:
-    """A simple rule-based baseline agent.
+def make_llm_action(observation) -> Action:
+    """Uses an LLM to decide the triage category and priority, and generates a response."""
+    
+    prompt = f"""You are an automated support ticket triage system. Analyze the following ticket.
 
-    Examines the ticket body for keywords to decide category and priority.
-    """
-    body = observation.body.lower()
-    subject = observation.subject.lower()
-    text = body + " " + subject
+Ticket Subject: {observation.subject}
+Ticket Body: {observation.body}
+Customer Tier: {observation.customer_tier}
 
-    # Category heuristics
+Triage the ticket by providing:
+1. "category": Must be strictly one of ["billing", "technical", "account", "general"]
+2. "priority": Must be strictly one of ["low", "medium", "high", "urgent"]
+3. "response_snippet": A short response (1-2 sentences) acknowledging their issue. Reiterate key words from their ticket.
+
+Return ONLY a raw JSON object with these 3 keys. Do not include markdown blocks or any other text.
+"""
+    try:
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0
+        )
+        content = response.choices[0].message.content.strip()
+        
+        # Clean potential markdown formatting just in case
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+            
+        data = json.loads(content.strip())
+        
+        # Ensure fallback values if the JSON is malformed
+        return Action(
+            category=data.get("category", "general"),
+            priority=data.get("priority", "low"),
+            response_snippet=data.get("response_snippet", "We have received your ticket.")
+        )
+    except Exception as e:
+        # Fallback to rule-based agent if LLM fails (e.g. timeout, invalid JSON, invalid auth)
+        return fallback_rule_action(observation)
+
+
+def fallback_rule_action(observation) -> Action:
+    """Fallback rule-based agent in case the LLM API call fails."""
+    text = (observation.body + " " + observation.subject).lower()
+    
     if "billing" in text or "charge" in text or "invoice" in text:
         category = "billing"
-    elif "password" in text or "login" in text or "access" in text or "dashboard" in text:
+    elif "password" in text or "login" in text or "access" in text:
         category = "technical"
-    elif "account" in text or "downgrade" in text or "upgrade" in text:
+    elif "account" in text or "downgrade" in text:
         category = "account"
     else:
         category = "general"
 
-    # Priority heuristics
-    if "urgent" in text or "block" in text or "tomorrow" in text:
+    if "urgent" in text or "block" in text:
         priority = "urgent"
     elif observation.customer_tier == "enterprise":
         priority = "high"
@@ -42,16 +97,7 @@ def make_baseline_action(observation) -> Action:
     else:
         priority = "low"
 
-    # Response snippet: echo back some keywords from the ticket
-    keywords = []
-    for kw in ["invoice", "charge", "billing", "password", "access",
-                "login", "downgrade", "account"]:
-        if kw in text:
-            keywords.append(kw)
-
-    snippet = f"We understand your concern regarding {', '.join(keywords[:3]) if keywords else 'your issue'}. We will look into it."
-
-    return Action(category=category, priority=priority, response_snippet=snippet)
+    return Action(category=category, priority=priority, response_snippet="We will look into your issue.")
 
 
 def format_action(action: Action) -> str:
@@ -72,7 +118,7 @@ def main():
         obs = env.reset()
 
         while True:
-            action = make_baseline_action(obs)
+            action = make_llm_action(obs)
             result = env.step(action)
             step_num += 1
 
@@ -101,6 +147,7 @@ def main():
         success_str = "true" if success else "false"
         rewards_str = ",".join(f"{r:.2f}" for r in rewards)
 
+        # Truncate and sanitize environment error messages on completion if needed
         print(f"[END] success={success_str} steps={step_num} score={score:.2f} rewards={rewards_str}")
 
 
