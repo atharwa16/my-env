@@ -2,8 +2,8 @@
 
 from typing import Optional
 
-from models import Observation, Action, StepResult, EnvState
-from tasks import TASKS
+from .models import Observation, Action, StepResult, EnvState
+from .tasks import TASKS
 
 
 class SupportTriageEnv:

@@ -7,8 +7,8 @@ Prints logs in the required [START] / [STEP] / [END] format.
 import os
 import json
 from openai import OpenAI
-from models import Action
-from support_env import SupportTriageEnv
+from server.models import Action
+from server.support_env import SupportTriageEnv
 
 
 TASK_NAME = "support-ticket-triage"

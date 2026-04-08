@@ -7,10 +7,15 @@ name = "support-ticket-triage"
 version = "1.0.0"
 description = "Customer Support Ticket Triage Environment for OpenEnv"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "fastapi==0.115.0",
     "uvicorn==0.30.6",
     "pydantic==2.9.2",
-    "openai>=1.0.0"
+    "openai>=1.0.0",
+    "openenv-core>=0.2.0"
 ]
+
+[project.scripts]
+server = "server.app:main"
+

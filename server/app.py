@@ -1,8 +1,8 @@
 """FastAPI server exposing the Support Ticket Triage environment."""
 
 from fastapi import FastAPI, HTTPException
-from models import Action, StepResult, EnvState, Observation
-from support_env import SupportTriageEnv
+from .models import Action, StepResult, EnvState, Observation
+from .support_env import SupportTriageEnv
 
 app = FastAPI(
     title="Support Ticket Triage Environment",
@@ -41,3 +41,8 @@ def state():
 def health():
     """Health check endpoint."""
     return {"status": "ok"}
+
+def main():
+    import uvicorn
+    uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
+
