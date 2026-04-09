@@ -6,6 +6,34 @@ Each task contains:
 - Difficulty level
 """
 
+def _evaluate_action(action, expected) -> float:
+    cat = action.get("category", "") if isinstance(action, dict) else getattr(action, "category", "")
+    pri = action.get("priority", "") if isinstance(action, dict) else getattr(action, "priority", "")
+    resp = action.get("response_snippet", "") if isinstance(action, dict) else getattr(action, "response_snippet", "")
+    
+    reward = 0.0
+    if cat.lower() == expected["category"]: reward += 0.4
+    if pri.lower() == expected["priority"]: reward += 0.3
+    
+    expected_keywords = expected["response_keywords"]
+    snippet_lower = resp.lower()
+    matched = sum(1 for kw in expected_keywords if kw in snippet_lower)
+    reward += round(0.3 * (matched / max(1, len(expected_keywords))), 4)
+    
+    return round(reward, 4)
+
+def grade_tkt_001(*args, **kwargs) -> float:
+    action = kwargs.get("action") or kwargs.get("output") or (args[0] if args else {})
+    return _evaluate_action(action, TASKS[0]["expected"])
+
+def grade_tkt_002(*args, **kwargs) -> float:
+    action = kwargs.get("action") or kwargs.get("output") or (args[0] if args else {})
+    return _evaluate_action(action, TASKS[1]["expected"])
+
+def grade_tkt_003(*args, **kwargs) -> float:
+    action = kwargs.get("action") or kwargs.get("output") or (args[0] if args else {})
+    return _evaluate_action(action, TASKS[2]["expected"])
+
 TASKS = [
     # ---- EASY: Straightforward billing question ----
     {
@@ -22,6 +50,7 @@ TASKS = [
             "priority": "medium",
             "response_keywords": ["invoice", "charge", "billing"],
         },
+        "grader": grade_tkt_001,
     },
     # ---- MEDIUM: Technical issue with some ambiguity ----
     {
@@ -39,6 +68,7 @@ TASKS = [
             "priority": "high",
             "response_keywords": ["password", "access", "login"],
         },
+        "grader": grade_tkt_002,
     },
     # ---- HARD: Ambiguous ticket needing careful reading ----
     {
@@ -57,5 +87,6 @@ TASKS = [
             "priority": "urgent",
             "response_keywords": ["downgrade", "access", "charge"],
         },
+        "grader": grade_tkt_003,
     },
 ]
