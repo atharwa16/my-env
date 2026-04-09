@@ -37,34 +37,22 @@ class SupportTriageEnv:
         task = self._tasks[self._current_index]
         expected = task["expected"]
 
-        # --- Deterministic grading ---
-        reward = 0.0
-        breakdown = {}
-
-        # Category match: 0.4 points
-        if action.category.lower() == expected["category"]:
-            reward += 0.4
-            breakdown["category"] = 0.4
+        # --- Agent Grader Integration ---
+        # Look up the task's dynamic agent grader based on current index
+        if self._current_index == 0:
+            from tasks.tkt_001.grader import grade as grade_agent
+        elif self._current_index == 1:
+            from tasks.tkt_002.grader import grade as grade_agent
         else:
-            breakdown["category"] = 0.0
+            from tasks.tkt_003.grader import grade as grade_agent
 
-        # Priority match: 0.3 points
-        if action.priority.lower() == expected["priority"]:
-            reward += 0.3
-            breakdown["priority"] = 0.3
-        else:
-            breakdown["priority"] = 0.0
-
-        # Response keyword match: 0.3 points (partial — per keyword)
-        expected_keywords = expected["response_keywords"]
-        snippet_lower = action.response_snippet.lower()
-        matched = sum(1 for kw in expected_keywords if kw in snippet_lower)
-        keyword_score = round(0.3 * (matched / len(expected_keywords)), 4)
-        reward += keyword_score
-        breakdown["response_keywords"] = keyword_score
-        breakdown["keywords_matched"] = f"{matched}/{len(expected_keywords)}"
-
+        # Execute True LLM Agent Evaluation Output
+        reward = grade_agent(action=action, expected=expected, ticket=task["ticket"])
         reward = round(reward, 4)
+
+        # Build basic summary info
+        breakdown = {"llm_eval": reward, "category_match": action.category.lower() == expected["category"]}
+        
         self._cumulative_reward += reward
 
         # Advance to next task or finish
