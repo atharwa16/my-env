@@ -1,3 +1,11 @@
+---
+title: Support Ticket Triage
+emoji: 🎫
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
 # Support Ticket Triage Environment
 
 An OpenEnv-compliant reinforcement learning environment for automated customer support ticket triage, powered by dynamic LLM-as-a-judge agent evaluators.
