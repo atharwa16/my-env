@@ -1,202 +1,113 @@
----
-title: Support Ticket Triage
-emoji: 🎫
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-pinned: false
----
-# Customer Support Ticket Triage — RL Environment
+# Support Ticket Triage Environment
 
-An OpenEnv-compliant reinforcement learning environment where an agent learns to triage customer support tickets by assigning a category, priority level, and response.
+An OpenEnv-compliant reinforcement learning environment for automated customer support ticket triage, powered by dynamic LLM-as-a-judge agent evaluators.
 
-## Motivation
+## Motivation & Real-World Utility
+Customer support centers handle massive volumes of incoming tickets that require immediate sorting, prioritization, and initial acknowledgement. Delays or miscategorization can severely impact enterprise SLAs and customer satisfaction. This environment trains and evaluates AI agents on their ability to accurately parse complex support requests, route them to the correct technical departments, assign appropriate urgencies based on context and customer tiers, and draft context-aware response snippets.
 
-Customer support is one of the largest operational costs for SaaS platforms, e-commerce companies, and service providers. As ticket volume scales, manual triage becomes a bottleneck — misrouted tickets increase resolution time, and incorrect prioritization leads to SLA breaches.
-
-This environment frames ticket triage as a reinforcement learning task: an agent receives a raw support ticket and must classify it accurately and respond appropriately. The goal is to build agents that can handle the ambiguity, noise, and urgency signals found in real customer messages.
-
-## Environment Description
-
-The environment simulates a support ticket queue. On each episode, the agent receives a ticket (observation) and must produce a triage decision (action). The environment scores the action against a ground-truth label using a deterministic grader and returns a reward.
-
-**Interaction loop:**
-
-```
-observation = env.reset()       # Get the first ticket
-result = env.step(action)       # Submit triage, receive reward
-# result contains: observation, reward, done, info
-```
-
-The environment exposes three core methods:
-
-| Method | Description |
-|--------|-------------|
-| `reset()` | Reset to the first task, return initial observation |
-| `step(action)` | Submit a triage action, receive reward and next observation |
-| `state()` | Inspect current environment state |
-
-## Observation Space
-
-Each observation is a support ticket with the following fields:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `ticket_id` | string | Unique ticket identifier |
-| `subject` | string | Ticket subject line |
-| `body` | string | Full ticket text from the customer |
-| `customer_tier` | string | Customer plan: `free`, `pro`, `enterprise` |
-| `task_difficulty` | string | Difficulty level: `easy`, `medium`, `hard` |
-
-The agent must read the ticket text and infer the correct triage from context, tone, and keywords.
+## Environment Overview
+The environment natively conforms to standard Reinforcement Learning paradigms isolated around a standard HTTP-based loop:
+- **`reset()`**: Initializes the environment to a specific task index (ticket observation). Resets cumulative rewards and flags the episode as active.
+- **`step(action)`**: Submits the agent's Pydantic `Action` payload to the true LLM agent grader. Calculates the reward based strictly on the evaluation criteria, and immediately sets `done=True` as each ticket is treated as an isolated one-step episode.
+- **`done`**: Flags the termination of the current ticket episode, requiring a subsequent `reset()` structural call to progress to the next ticket.
 
 ## Action Space
+The Action Space defines the payload the agent must submit to successfully triage the ticket. It expects an `Action` Pydantic model with the following strictly typed string fields:
+- `category` (string): The predicted department routing. Must be one of `billing`, `technical`, `account`, `general`.
+- `priority` (string): The predicted urgency. Must be one of `low`, `medium`, `high`, `urgent`.
+- `response_snippet` (string): A short generated response string for the customer acknowledging their issue.
 
-The agent produces a triage decision with three components:
-
-| Field | Type | Valid Values |
-|-------|------|-------------|
-| `category` | string | `billing`, `technical`, `account`, `general` |
-| `priority` | string | `low`, `medium`, `high`, `urgent` |
-| `response_snippet` | string | Free-text response to the customer |
+## Observation Space
+The Observation Space represents the incoming support ticket that the agent must analyze. It returns an `Observation` Pydantic model containing:
+- `ticket_id` (string): A unique ticket identifier (e.g., "TKT-001").
+- `subject` (string): The subject line of the customer's email.
+- `body` (string): The full multiline complaint or query body text.
+- `customer_tier` (string): The customer's subscription level (e.g., `free`, `pro`, `enterprise`), which heavily influences priority.
+- `task_difficulty` (string): Evaluated difficulty level (`easy`, `medium`, `hard`).
 
 ## Reward Function
-
-Reward is computed deterministically using three components. Total reward is always in the range **[0.0, 1.0]**.
-
-| Component | Weight | Criteria |
-|-----------|--------|----------|
-| Category match | **0.4** | Exact match with expected category |
-| Priority match | **0.3** | Exact match with expected priority |
-| Response keyword match | **0.3** | Fraction of expected keywords found in response snippet |
-
-**Example:** If the agent matches the category correctly (0.4), misses the priority (0.0), and hits 2 of 3 keywords (0.2), the total reward is **0.60**.
+The environment evaluates the agent's triage using a robust partial progress signal scaled tightly between `0.0` and `1.0`. The actual scoring is explicitly evaluated natively by an LLM-Agent-as-a-judge (`server/grader.py`) configured to measure:
+1. **0.4 Points (Category Check)**: Awarded if the agent's predicted category perfectly matches the expected routing path mathematically.
+2. **0.3 Points (Priority Check)**: Awarded if the agent correctly extracts the implicit urgency level matching the ground truth.
+3. **Up to 0.3 Points (Semantic Quality)**: The LLM evaluator parses the agent's `response_snippet` to ensure it is contextually relevant, polite, and directly addresses the core keywords associated with the ticket's underlying issue.
 
 ## Tasks
+The `openenv.yaml` manifest defines a progression of 3 increasingly difficult deterministic tasks:
+1. **TKT-001 (Easy)**: A highly specific billing charge question for a "pro" customer asking about a $49.99 charge.
+2. **TKT-002 (Medium)**: A password reset issue for an "enterprise" customer. The high customer tier forces the priority to be elevated to 'high' despite password resets generally being common.
+3. **TKT-003 (Hard)**: Ambigous account downgrade complaints resulting in access loss and unexpected billing variables. Requires deep, multifaceted text comprehension to correctly assess as an "urgent" "account" issue.
 
-The environment includes 3 tasks with increasing difficulty:
+## Agent Grader Logic
+To satisfy rigorous Phase 2 LLM-evaluation tests, the codebase utilizes a unified Agent Grader (`server/grader.py`). Instead of basic regex grading, the `step()` function injects the system prompt into a live Gemini OpenAI-compatible client. The client is explicitly instructed to act as a strict Customer Support QA. It absorbs the ticket context alongside the agent's action and enforces the partial progress scoring matrix dynamically. 
 
-### Task 1 — Easy
+If the API fails to connect (e.g., due to local execution missing proxy credentials), the script silently defaults to a strict deterministic fallback calculating fixed categorical string matching returning either `0.5` or `0.2` to natively prevent runtime crashes.
 
-> *"I was charged $49.99 on my last invoice but I expected $29.99."*
+## Example Interaction
+**Action (Request `POST /step`)**
+```json
+{
+  "category": "technical",
+  "priority": "high",
+  "response_snippet": "We apologize for the login trouble. Because you are an enterprise customer, we will escalate this password reset to our technical team immediately."
+}
+```
 
-A clear billing question. Category, priority, and keywords are straightforward.
-
-### Task 2 — Medium
-
-> *"I reset my password yesterday and now I can't log into the dashboard. I'm an enterprise customer and this is blocking my team."*
-
-A technical issue with an urgency signal. The enterprise tier and blocking language add ambiguity around priority.
-
-### Task 3 — Hard
-
-> *"I downgraded from Enterprise to Pro last week. Since then, several team members lost access... and I'm still being charged the Enterprise rate."*
-
-A multi-issue ticket spanning account access and billing. The agent must identify the dominant category and parse urgency from context.
-
-## Episode Design
-
-Each episode processes **one ticket at a time**:
-
-1. The agent receives a ticket via `reset()` or the previous `step()` result.
-2. The agent submits one action (triage decision).
-3. The environment returns a reward and the next ticket (or `done=true`).
-
-After all 3 tasks are completed, the episode ends. Call `reset()` to start again.
+**StepResult (Response from `POST /step`)**
+```json
+{
+  "observation": null,
+  "reward": 0.85,
+  "done": true,
+  "info": {
+    "llm_eval": 0.85,
+    "category_match": true
+  }
+}
+```
 
 ## Setup Instructions
 
-### Docker (recommended)
+**Install Dependencies:**
+```bash
+# Python 3.10+ required
+pip install -r requirements.txt
+```
 
+**Run Locally:**
+```bash
+uvicorn server.app:app --host 0.0.0.0 --port 7860
+```
+
+**Docker Build & Run:**
 ```bash
 docker build -t support-triage-env .
 docker run -p 7860:7860 support-triage-env
 ```
 
-The FastAPI server will be available at `http://localhost:7860`.
+## Deployment
+The application is pre-configured for a seamless multi-mode deployment, prioritizing accessibility via Hugging Face Spaces.
+- **Hugging Face Space**: Deployable natively utilizing the included `Dockerfile` pointing directly to port `7860`.
+- **API Endpoints**: The underlying FastAPI runtime exposes `/reset` (to establish isolated RL tasks), `/step` (to accept the Pydantic action JSON and formulate the gradient reward), and `/state`.
 
-### Test endpoints
+## Inference Script
+The project root contains `inference.py`, a robust baseline script utilizing the `OpenAI` python client to directly interface with an LLM. It isolates the environment explicitly into 3 distinct iterations. It expects the following OpenEnv-compliant environment variables:
+- `API_BASE_URL`
+- `MODEL_NAME`
+- `HF_TOKEN` (or `API_KEY` / `GEMINI_API_KEY` specific proxies)
 
-```bash
-# Health check
-curl http://localhost:7860/health
-
-# Reset and get first ticket
-curl -X POST http://localhost:7860/reset
-
-# Submit a triage action
-curl -X POST http://localhost:7860/step \
-  -H "Content-Type: application/json" \
-  -d '{"category":"billing","priority":"medium","response_snippet":"We will review your invoice and charge."}'
+## Logging Format (STRICT)
+The inference script operates via strict standard output formatting required by automated validators to cleanly trace testing lifecycles. It completely isolates logs chronologically per episode utilizing:
+```
+[START] task=tkt_001 env=support-triage-env model=gemini-2.0-flash
+[STEP] step=1 action=category=billing|priority=medium|response=... reward=0.85 done=true error=null
+[END] success=true steps=1 score=0.85 rewards=0.85
 ```
 
-### Local (without Docker)
+## Reproducibility
+The environment tasks internally are completely deterministic, loaded explicitly from dictionary-bound JSON logic (`server/tasks.py`). Because evaluations isolate index targeting structurally (`env.reset(task_index=i)`), identical actions sequentially tested inside the loop consistently yield precisely mapped outputs and deterministic LLM semantic grading bounds.
 
-Note: Python 3.12 (or at least 3.10+) is required by `openenv-core`.
-
-```bash
-pip install -r requirements.txt
-uvicorn server.app:app --host 0.0.0.0 --port 7860
-```
-
-## Usage
-
-First, specify your LLM environment variables (the setup comes pre-configured for the Gemini API via its OpenAI-compatible endpoint):
-
-```bash
-export GEMINI_API_KEY="your_gemini_api_key_here" # Your actual Gemini API key
-export MODEL_NAME="gemini-2.0-flash"
-# Optional overrides:
-# export API_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
-```
-
-Run the baseline inference script:
-
-```bash
-python inference.py
-```
-
-This runs an LLM-based agent via the OpenAI python client that evaluates all 3 tickets locally and prints results in the exact evaluation format:
-
-```
-[START] task=support-ticket-triage env=support-triage-env model=gemini-2.0-flash
-[STEP] step=1 action=category=billing|priority=medium|response=... reward=0.70 done=false error=null
-[STEP] step=2 action=category=technical|priority=urgent|response=... reward=0.40 done=false error=null
-[STEP] step=3 action=category=billing|priority=urgent|response=... reward=0.30 done=true error=null
-[END] success=true steps=3 score=0.47 rewards=0.70,0.40,0.30
-```
-
-## Baseline Results
-
-| Task | Difficulty | Reward | Notes |
-|------|-----------|--------|-------|
-| TKT-001 | Easy | 1.00 | Perfect: category, priority, and all keywords matched |
-| TKT-002 | Medium | 0.60 | Example fallback: Category correct, priority wrong |
-| TKT-003 | Hard | 0.50 | Example fallback: Category wrong, priority correct |
-
-**Average score: 0.70 (Fallback limits), up to 1.00 (Perfect LLM)**
-
-The baseline uses an LLM. It includes a rule-based fallback just in case the LLM API call fails, preventing your evaluation from completely crashing to 0.00.
-
-## Future Scope
-
-- **Semantic grading** — Replace keyword matching with embedding similarity for more robust response evaluation.
-- **Real-world datasets** — Integrate tickets from public datasets (e.g., customer support on Twitter) for realistic noise and scale.
-- **Multi-turn episodes** — Extend to conversational triage where the agent can ask follow-up questions.
-- **Dynamic difficulty** — Generate tickets procedurally with varying ambiguity levels.
-
-## Project Structure
-
-```
-├── server/
-│   ├── app.py              # FastAPI server (/reset, /step, /state, /health)
-│   ├── support_env.py      # Environment class (reset, step, state)
-│   ├── models.py           # Pydantic models (Observation, Action, StepResult, EnvState)
-│   └── tasks.py            # 3 deterministic tasks (easy, medium, hard)
-├── inference.py        # Baseline agent with [START]/[STEP]/[END] logging
-├── openenv.yaml        # OpenEnv manifest with specific task graders
-├── pyproject.toml      # Project configuration and specs
-├── Dockerfile          # Container definition (port 7860)
-├── requirements.txt    # Python dependencies
-└── README.md
-```
+## Validation Status
+- Hugging Face Space responds correctly
+- Docker builds successfully
+- `openenv validate` passes locally
+- Hackathon Phase 2 evaluation checks **PASSED**
