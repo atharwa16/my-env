@@ -34,17 +34,17 @@ tasks:
     name: "Billing charge question"
     description: "Triage a billing charge question for a pro customer."
     difficulty: "easy"
-    grader: "server.tasks:grade"
+    grader: "server.tasks:grade_tkt_001"
   - id: "tkt_002"
     name: "Cannot access dashboard after password reset"
     description: "Triage a password reset issue for an enterprise customer."
     difficulty: "medium"
-    grader: "server.tasks:grade"
+    grader: "server.tasks:grade_tkt_002"
   - id: "tkt_003"
     name: "Account and billing concerns after downgrade"
     description: "Triage account downgrade and billing concerns."
     difficulty: "hard"
-    grader: "server.tasks:grade"
+    grader: "server.tasks:grade_tkt_003"
 
 scoring:
   min_reward: 0.0
