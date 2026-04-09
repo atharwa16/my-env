@@ -13,9 +13,9 @@ from server.support_env import SupportTriageEnv
 
 TASK_NAME = "support-ticket-triage"
 ENV_NAME = "support-triage-env"
-API_BASE_URL = os.getenv("API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
-MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.0-flash")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "your_gemini_api_key_here")
+API_BASE_URL = os.environ.get("API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
+MODEL_NAME = os.environ.get("MODEL_NAME", "gemini-2.0-flash")
+API_KEY = os.environ.get("API_KEY", os.environ.get("GEMINI_API_KEY", "your_gemini_api_key_here"))
 
 # Optional — if you use from_docker_image():
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
@@ -28,7 +28,7 @@ def get_client() -> OpenAI:
     if _client is None:
         _client = OpenAI(
             base_url=API_BASE_URL,
-            api_key=GEMINI_API_KEY,
+            api_key=API_KEY,
         )
     return _client
 
