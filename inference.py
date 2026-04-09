@@ -109,49 +109,29 @@ def format_action(action: Action) -> str:
 
 
 def main():
-    rewards = []
-    step_num = 0
-    success = True
-    error_msg = "null"
-
-    print(f"[START] task={TASK_NAME} env={ENV_NAME} model={MODEL_NAME}")
-
+    task_ids = ["tkt_001", "tkt_002", "tkt_003"]
+    
     try:
         env = SupportTriageEnv()
-        obs = env.reset()
 
-        while True:
+        for i, task_id in enumerate(task_ids):
+            print(f"[START] task={task_id} env={ENV_NAME} model={MODEL_NAME}")
+            
+            obs = env.reset(task_index=i)
             action = make_llm_action(obs)
             result = env.step(action)
-            step_num += 1
 
             action_str = format_action(action)
             done_str = "true" if result.done else "false"
 
-            print(f"[STEP] step={step_num} action={action_str} reward={result.reward:.2f} done={done_str} error=null")
-
-            rewards.append(result.reward)
-
-            if result.done:
-                break
-
-            obs = result.observation
+            # Each ticket is exactly 1 step
+            print(f"[STEP] step=1 action={action_str} reward={result.reward:.2f} done={done_str} error=null")
+            print(f"[END] success=true steps=1 score={result.reward:.2f} rewards={result.reward:.2f}")
 
     except Exception as e:
-        success = False
         error_msg = str(e)
-        step_num += 1
-        print(f"[STEP] step={step_num} action=error reward=0.00 done=true error={error_msg}")
-        rewards.append(0.0)
-
-    finally:
-        score = sum(rewards) / len(rewards) if rewards else 0.0
-        score = max(0.0, min(1.0, score))
-        success_str = "true" if success else "false"
-        rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-
-        # Truncate and sanitize environment error messages on completion if needed
-        print(f"[END] success={success_str} steps={step_num} score={score:.2f} rewards={rewards_str}")
+        print(f"[STEP] step=1 action=error reward=0.00 done=true error={error_msg}")
+        print(f"[END] success=false steps=1 score=0.00 rewards=0.00")
 
 
 if __name__ == "__main__":

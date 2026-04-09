@@ -16,12 +16,12 @@ class SupportTriageEnv:
         self._cumulative_reward = 0.0
         self._current_observation: Optional[Observation] = None
 
-    def reset(self) -> Observation:
-        """Reset the environment to the first task and return the first observation."""
-        self._current_index = 0
+    def reset(self, task_index: int = 0) -> Observation:
+        """Reset the environment to a specific task safely."""
+        self._current_index = task_index
         self._done = False
         self._cumulative_reward = 0.0
-        self._current_observation = Observation(**self._tasks[0]["ticket"])
+        self._current_observation = Observation(**self._tasks[self._current_index]["ticket"])
         return self._current_observation
 
     def step(self, action: Action) -> StepResult:
@@ -49,23 +49,13 @@ class SupportTriageEnv:
         
         self._cumulative_reward += reward
 
-        # Advance to next task or finish
-        self._current_index += 1
-        if self._current_index >= len(self._tasks):
-            self._done = True
-            self._current_observation = None
-            return StepResult(
-                observation=None,
-                reward=reward,
-                done=True,
-                info=breakdown,
-            )
-
-        self._current_observation = Observation(**self._tasks[self._current_index]["ticket"])
+        # Mark the episode as finished because each task is exactly 1 step
+        self._done = True
+        self._current_observation = None
         return StepResult(
-            observation=self._current_observation,
+            observation=None,
             reward=reward,
-            done=False,
+            done=True,
             info=breakdown,
         )
 
