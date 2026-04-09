@@ -24,10 +24,12 @@ Evaluate the AI's triage results for the following ticket:
 --- Ticket ---
 Subject: {ticket.get('subject', '')}
 Body: {ticket.get('body', '')}
+Tier: {ticket.get('customer_tier', '')}
 
 --- Expected Routing ---
 Category: {expected.get('category', '')}
 Priority: {expected.get('priority', '')}
+Key Topics: {', '.join(expected.get('response_keywords', []))}
 
 --- AI Agent's Action ---
 Category: {cat}
@@ -37,13 +39,18 @@ Response Snippet: {resp}
 Evaluate the action's accuracy. 
 - Award 0.4 if the category perfectly matches.
 - Award 0.3 if the priority perfectly matches.
-- Award up to 0.3 based on the quality and semantic relevance of the response snippet.
-Provide partial progress scores if the response is somewhat relevant.
+- Award up to 0.3 based on the quality, semantic relevance, and inclusion of key topics in the response snippet.
+Provide partial progress scores if the response is somewhat relevant but misses key specifics.
 
 Output ONLY a single float value between 0.0 and 1.0 (e.g. "0.85"). Do not output any explanation.
 """
 
-def evaluate_with_llm(ticket, expected, action) -> float:
+def grade(*args, **kwargs) -> float:
+    """Universal Agent Grader for all tasks."""
+    action = kwargs.get("action", args[0] if args else {})
+    expected = kwargs.get("expected", {})
+    ticket = kwargs.get("ticket", {})
+    
     try:
         prompt = create_grader_prompt(ticket, expected, action)
         client = get_client()
@@ -59,20 +66,7 @@ def evaluate_with_llm(ticket, expected, action) -> float:
             return float(match.group())
         return float(score_str)
     except Exception as e:
+        print(f"LLM Grader Exception: {e}")
         cat = action.get("category", "") if isinstance(action, dict) else getattr(action, "category", "")
-        if cat.lower() == expected["category"].lower(): return 0.5
+        if cat.lower() == expected.get("category", "").lower(): return 0.5
         return 0.2
-
-def grade(*args, **kwargs) -> float:
-    """Agent Grader for Task 003."""
-    action = kwargs.get("action", args[0] if args else {})
-    expected = kwargs.get("expected", {
-            "category": "account",
-            "priority": "urgent",
-            "response_keywords": ["downgrade", "access", "charge"]
-    })
-    ticket = kwargs.get("ticket", {
-            "subject": "Account and billing concerns after downgrade",
-            "body": "I downgraded from Enterprise to Pro last week."
-    })
-    return evaluate_with_llm(ticket, expected, action)

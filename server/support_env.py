@@ -38,16 +38,10 @@ class SupportTriageEnv:
         expected = task["expected"]
 
         # --- Agent Grader Integration ---
-        # Look up the task's dynamic agent grader based on current index
-        if self._current_index == 0:
-            from tasks.tkt_001.grader import grade as grade_agent
-        elif self._current_index == 1:
-            from tasks.tkt_002.grader import grade as grade_agent
-        else:
-            from tasks.tkt_003.grader import grade as grade_agent
+        from .grader import grade as universal_agent_grader
 
         # Execute True LLM Agent Evaluation Output
-        reward = grade_agent(action=action, expected=expected, ticket=task["ticket"])
+        reward = universal_agent_grader(action=action, expected=expected, ticket=task["ticket"])
         reward = round(reward, 4)
 
         # Build basic summary info
