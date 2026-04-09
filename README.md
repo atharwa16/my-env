@@ -132,19 +132,22 @@ curl -X POST http://localhost:7860/step \
 
 ### Local (without Docker)
 
+Note: Python 3.12 (or at least 3.10+) is required by `openenv-core`.
+
 ```bash
 pip install -r requirements.txt
-uvicorn app:app --host 0.0.0.0 --port 7860
+uvicorn server.app:app --host 0.0.0.0 --port 7860
 ```
 
 ## Usage
 
-First, specify your LLM environment variables required by the OpenEnv inference specification:
+First, specify your LLM environment variables (the setup comes pre-configured for the Gemini API via its OpenAI-compatible endpoint):
 
 ```bash
-export API_BASE_URL="https://api.openai.com/v1"  # Or compatible endpoint
-export MODEL_NAME="gemini-1.5-pro"
-export HF_TOKEN="your-api-key"
+export GEMINI_API_KEY="your_gemini_api_key_here" # Your actual Gemini API key
+export MODEL_NAME="gemini-2.0-flash"
+# Optional overrides:
+# export API_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
 ```
 
 Run the baseline inference script:
@@ -156,11 +159,11 @@ python inference.py
 This runs an LLM-based agent via the OpenAI python client that evaluates all 3 tickets locally and prints results in the exact evaluation format:
 
 ```
-[START] task=support-ticket-triage env=support-triage-env model=gemini-1.5-pro
-[STEP] step=1 action=category=billing|priority=medium|response=... reward=1.00 done=false error=null
-[STEP] step=2 action=category=technical|priority=urgent|response=... reward=0.60 done=false error=null
-[STEP] step=3 action=category=billing|priority=urgent|response=... reward=0.50 done=true error=null
-[END] success=true steps=3 score=0.70 rewards=1.00,0.60,0.50
+[START] task=support-ticket-triage env=support-triage-env model=gemini-2.0-flash
+[STEP] step=1 action=category=billing|priority=medium|response=... reward=0.70 done=false error=null
+[STEP] step=2 action=category=technical|priority=urgent|response=... reward=0.40 done=false error=null
+[STEP] step=3 action=category=billing|priority=urgent|response=... reward=0.30 done=true error=null
+[END] success=true steps=3 score=0.47 rewards=0.70,0.40,0.30
 ```
 
 ## Baseline Results
@@ -185,12 +188,14 @@ The baseline uses an LLM. It includes a rule-based fallback just in case the LLM
 ## Project Structure
 
 ```
-├── app.py              # FastAPI server (/reset, /step, /state, /health)
-├── support_env.py      # Environment class (reset, step, state)
-├── models.py           # Pydantic models (Observation, Action, StepResult, EnvState)
-├── tasks.py            # 3 deterministic tasks (easy, medium, hard)
+├── server/
+│   ├── app.py              # FastAPI server (/reset, /step, /state, /health)
+│   ├── support_env.py      # Environment class (reset, step, state)
+│   ├── models.py           # Pydantic models (Observation, Action, StepResult, EnvState)
+│   └── tasks.py            # 3 deterministic tasks (easy, medium, hard)
 ├── inference.py        # Baseline agent with [START]/[STEP]/[END] logging
-├── openenv.yaml        # OpenEnv manifest
+├── openenv.yaml        # OpenEnv manifest with specific task graders
+├── pyproject.toml      # Project configuration and specs
 ├── Dockerfile          # Container definition (port 7860)
 ├── requirements.txt    # Python dependencies
 └── README.md

@@ -13,17 +13,24 @@ from server.support_env import SupportTriageEnv
 
 TASK_NAME = "support-ticket-triage"
 ENV_NAME = "support-triage-env"
-API_BASE_URL = os.getenv("API_BASE_URL", "<your-active-endpoint>")
-MODEL_NAME = os.getenv("MODEL_NAME", "<your-active-model>")
-HF_TOKEN = os.getenv("HF_TOKEN")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
+MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.0-flash")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "your_gemini_api_key_here")
 
 # Optional — if you use from_docker_image():
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
-client = OpenAI(
-    base_url=API_BASE_URL,
-    api_key=HF_TOKEN
-)
+_client = None
+
+def get_client() -> OpenAI:
+    """Lazily create the OpenAI-compatible client for Gemini."""
+    global _client
+    if _client is None:
+        _client = OpenAI(
+            base_url=API_BASE_URL,
+            api_key=GEMINI_API_KEY,
+        )
+    return _client
 
 
 def make_llm_action(observation) -> Action:
@@ -43,7 +50,7 @@ Triage the ticket by providing:
 Return ONLY a raw JSON object with these 3 keys. Do not include markdown blocks or any other text.
 """
     try:
-        response = client.chat.completions.create(
+        response = get_client().chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0
