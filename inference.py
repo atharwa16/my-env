@@ -53,7 +53,7 @@ Return ONLY a raw JSON object with these 3 keys. Do not include markdown blocks 
         response = get_client().chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.0
+            temperature=0.7
         )
         content = response.choices[0].message.content.strip()
         
