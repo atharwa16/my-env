@@ -22,7 +22,7 @@ The environment natively conforms to standard Reinforcement Learning paradigms i
 ## Action Space
 The Action Space defines the payload the agent must submit to successfully triage the ticket. It expects an `Action` Pydantic model with the following strictly typed string fields:
 - `category` (string): The predicted department routing. Must be one of `billing`, `technical`, `account`, `general`.
-- `priority` (string): The predicted urgency. Must be one of `low`, `medium`, `high`, `urgent`.
+- `priority` (string): The predicted urgency. Must be one of `low`, `medium`, `high`, `urgent`, `critical`.
 - `response_snippet` (string): A short generated response string for the customer acknowledging their issue.
 
 ## Observation Space
@@ -35,9 +35,13 @@ The Observation Space represents the incoming support ticket that the agent must
 
 ## Reward Function
 The environment evaluates the agent's triage using a robust partial progress signal scaled tightly between `0.0` and `1.0`. The actual scoring is explicitly evaluated natively by an LLM-Agent-as-a-judge (`server/grader.py`) configured to measure:
-1. **0.4 Points (Category Check)**: Awarded if the agent's predicted category perfectly matches the expected routing path mathematically.
-2. **0.3 Points (Priority Check)**: Awarded if the agent correctly extracts the implicit urgency level matching the ground truth.
-3. **Up to 0.3 Points (Semantic Quality)**: The LLM evaluator parses the agent's `response_snippet` to ensure it is contextually relevant, polite, and directly addresses the core keywords associated with the ticket's underlying issue.
+1. **0.4 Points (Category Check)**: Awarded for a category match. Includes semantic awareness; e.g., predicting `billing` for an `account` issue (or vice versa) still receives **0.8 reward weight (0.32 pts)** due to their high correlation in support workflows.
+2. **0.3 Points (Priority Check)**: Awarded based on proximity within the 5-level hierarchy: `critical > urgent > high > medium > low`.
+   - Exact match: **1.0 (0.30 pts)**
+   - 1 level distance (e.g., High vs Urgent): **0.75 (0.225 pts)**
+   - 2 levels distance: **0.50 (0.15 pts)**
+   - etc.
+3. **Up to 0.3 Points (Semantic Quality)**: Evaluated by an LLM-Agent-as-a-judge to ensure the `response_snippet` is contextually relevant, polite, and addresses key ticket themes.
 
 ## Tasks
 The `openenv.yaml` manifest defines a progression of 3 increasingly difficult deterministic tasks:
