@@ -15,7 +15,7 @@ def get_client() -> OpenAI:
     return _client
 
 def _get_priority_val(p_str: str) -> int:
-    mapping = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+    mapping = {"low": 1, "medium": 2, "high": 3, "urgent": 4, "critical": 5}
     return mapping.get(str(p_str).lower().strip(), 0)
 
 def create_grader_prompt(ticket, expected, action) -> str:
@@ -49,14 +49,22 @@ def grade(*args, **kwargs) -> float:
     # --- Programmatic Smooth Scoring ---
     cat_exp = str(expected.get("category", "")).strip().lower()
     cat_act = str(action.get("category", "") if isinstance(action, dict) else getattr(action, "category", "")).strip().lower()
-    cat_score = difflib.SequenceMatcher(None, cat_exp, cat_act).ratio()
+    
+    # Semantic Category Check
+    if cat_exp == cat_act:
+        cat_score = 1.0
+    elif {cat_exp, cat_act} == {"account", "billing"}:
+        cat_score = 0.8  # Consider account and billing closely related
+    else:
+        cat_score = difflib.SequenceMatcher(None, cat_exp, cat_act).ratio()
     
     pri_exp = str(expected.get("priority", "")).strip().lower()
     pri_act = str(action.get("priority", "") if isinstance(action, dict) else getattr(action, "priority", "")).strip().lower()
     
     v_exp, v_act = _get_priority_val(pri_exp), _get_priority_val(pri_act)
     if v_exp and v_act:
-        pri_score = max(0.0, 1.0 - (abs(v_exp - v_act) * 0.333))
+        # Distance calculation based on 5 levels (max distance 4)
+        pri_score = max(0.0, 1.0 - (abs(v_exp - v_act) * 0.25))
     else:
         pri_score = difflib.SequenceMatcher(None, pri_exp, pri_act).ratio()
 

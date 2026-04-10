@@ -44,7 +44,7 @@ Customer Tier: {observation.customer_tier}
 
 Triage the ticket by providing:
 1. "category": Must be strictly one of ["billing", "technical", "account", "general"]
-2. "priority": Must be strictly one of ["low", "medium", "high", "urgent"]
+2. "priority": Must be strictly one of ["low", "medium", "high", "urgent", "critical"]
 3. "response_snippet": A short response (1-2 sentences) acknowledging their issue. Reiterate key words from their ticket.
 
 Return ONLY a raw JSON object with these 3 keys. Do not include markdown blocks or any other text.
@@ -91,7 +91,9 @@ def fallback_rule_action(observation) -> Action:
     else:
         category = "general"
 
-    if "urgent" in text or "block" in text:
+    if "critical" in text or "immediately" in text:
+        priority = "critical"
+    elif "urgent" in text or "block" in text:
         priority = "urgent"
     elif observation.customer_tier == "enterprise":
         priority = "high"
