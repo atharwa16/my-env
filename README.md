@@ -5,10 +5,11 @@ colorFrom: blue
 colorTo: indigo
 sdk: docker
 pinned: false
+tags: ["openenv"]
 ---
 # Support Ticket Triage Environment
 
-An OpenEnv-compliant reinforcement learning environment for automated customer support ticket triage, powered by dynamic LLM-as-a-judge agent evaluators.
+An OpenEnv-compliant reinforcement learning environment for automated customer support ticket triage, powered by a fast, 100% programmatic keyword-based grader.
 
 ## Motivation & Real-World Utility
 Customer support centers handle massive volumes of incoming tickets that require immediate sorting, prioritization, and initial acknowledgement. Delays or miscategorization can severely impact enterprise SLAs and customer satisfaction. This environment trains and evaluates AI agents on their ability to accurately parse complex support requests, route them to the correct technical departments, assign appropriate urgencies based on context and customer tiers, and draft context-aware response snippets.
@@ -16,7 +17,7 @@ Customer support centers handle massive volumes of incoming tickets that require
 ## Environment Overview
 The environment natively conforms to standard Reinforcement Learning paradigms isolated around a standard HTTP-based loop:
 - **`reset()`**: Initializes the environment to a specific task index (ticket observation). Resets cumulative rewards and flags the episode as active.
-- **`step(action)`**: Submits the agent's Pydantic `Action` payload to the true LLM agent grader. Calculates the reward based strictly on the evaluation criteria, and immediately sets `done=True` as each ticket is treated as an isolated one-step episode.
+- **`step(action)`**: Submits the agent's Pydantic `Action` payload to the programmatic grader. Calculates the reward based on strict classification and keyword matching criteria, and immediately sets `done=True` as each ticket is treated as an isolated one-step episode.
 - **`done`**: Flags the termination of the current ticket episode, requiring a subsequent `reset()` structural call to progress to the next ticket.
 
 ## Action Space
@@ -34,25 +35,31 @@ The Observation Space represents the incoming support ticket that the agent must
 - `task_difficulty` (string): Evaluated difficulty level (`easy`, `medium`, `hard`).
 
 ## Reward Function
-The environment evaluates the agent's triage using a robust partial progress signal scaled tightly between `0.0` and `1.0`. The actual scoring is explicitly evaluated natively by an LLM-Agent-as-a-judge (`server/grader.py`) configured to measure:
+The environment evaluates the agent's triage using a robust partial progress signal scaled tightly between `0.0` and `1.0`. The actual scoring is explicitly evaluated natively by a programmatic grader (`server/grader.py`) configured to measure:
 1. **0.4 Points (Category Check)**: Awarded for a category match. Includes semantic awareness; e.g., predicting `billing` for an `account` issue (or vice versa) still receives **0.8 reward weight (0.32 pts)** due to their high correlation in support workflows.
 2. **0.3 Points (Priority Check)**: Awarded based on proximity within the 5-level hierarchy: `critical > urgent > high > medium > low`.
    - Exact match: **1.0 (0.30 pts)**
    - 1 level distance (e.g., High vs Urgent): **0.75 (0.225 pts)**
    - 2 levels distance: **0.50 (0.15 pts)**
    - etc.
-3. **Up to 0.3 Points (Semantic Quality)**: Evaluated by an LLM-Agent-as-a-judge to ensure the `response_snippet` is contextually relevant, polite, and addresses key ticket themes.
+3. **Up to 0.3 Points (Keyword Quality)**: Evaluated programmatically by checking for the presence of expected keywords (with support for fuzzy matching/typos).
 
 ## Tasks
 The `openenv.yaml` manifest defines a progression of 3 increasingly difficult deterministic tasks:
+
+
 1. **TKT-001 (Easy)**: A highly specific billing charge question for a "pro" customer asking about a $49.99 charge.
 2. **TKT-002 (Medium)**: A password reset issue for an "enterprise" customer. The high customer tier forces the priority to be elevated to 'high' despite password resets generally being common.
 3. **TKT-003 (Hard)**: Ambigous account downgrade complaints resulting in access loss and unexpected billing variables. Requires deep, multifaceted text comprehension to correctly assess as an "urgent" "account" issue.
 
 ## Agent Grader Logic
-To satisfy rigorous Phase 2 LLM-evaluation tests, the codebase utilizes a unified Agent Grader (`server/grader.py`). Instead of basic regex grading, the `step()` function injects the system prompt into a live Gemini OpenAI-compatible client. The client is explicitly instructed to act as a strict Customer Support QA. It absorbs the ticket context alongside the agent's action and enforces the partial progress scoring matrix dynamically. 
+To ensure consistency and reliability, the codebase utilizes a 100% Programmatic Agent Grader (`server/grader.py`). Instead of relying on external LLM calls for evaluation (which can suffer from latency and quota 429 errors), the `step()` function uses deterministic logic to score the agent's output.
 
-If the API fails to connect (e.g., due to local execution missing proxy credentials), the script silently defaults to a strict deterministic fallback calculating fixed categorical string matching returning either `0.5` or `0.2` to natively prevent runtime crashes.
+The grader implements:
+1.  **Exact Match**: for categories and priority.
+2.  **Cross-departmental Credit**: 0.8 weight for closely related categories (e.g., Account and Billing).
+3.  **Numerical Hierarchy**: Distance-based scoring for priority levels.
+4.  **Fuzzy Keyword Matching**: Partial credit for typos or near-misses in the response snippet using `difflib`.
 
 ## Example Interaction
 **Action (Request `POST /step`)**
@@ -115,8 +122,26 @@ The inference script operates via strict standard output formatting required by 
 [END] success=true steps=1 score=0.85 rewards=0.85
 ```
 
+## Baseline Performance
+The baseline agent (`inference.py`) achieved the following scores using `gemini-2.0-flash` (agent-side) and the **programmatic grader** (eval-side):
+
+| Task ID | Difficulty | Score |
+|---------|------------|-------|
+| TKT-001 | Easy       | 1.00  |
+| TKT-002 | Medium     | 0.85  |
+| TKT-003 | Hard       | 0.90  |
+| **Average** |        | **0.92** |
+
+## Security
+**Never commit your API key to GitHub.**
+The inference script is configured to read the key from an environment variable. To set it safely:
+```bash
+export GEMINI_API_KEY="your_actual_key_here"
+python3 inference.py
+```
+
 ## Reproducibility
-The environment tasks internally are completely deterministic, loaded explicitly from dictionary-bound JSON logic (`server/tasks.py`). Because evaluations isolate index targeting structurally (`env.reset(task_index=i)`), identical actions sequentially tested inside the loop consistently yield precisely mapped outputs and deterministic LLM semantic grading bounds.
+The environment tasks internally are completely deterministic, loaded explicitly from dictionary-bound JSON logic (`server/tasks.py`). Because evaluations isolate index targeting structurally (`env.reset(task_index=i)`), identical actions sequentially tested inside the loop consistently yield precisely mapped outputs and deterministic grading bounds.
 
 ## Validation Status
 - Hugging Face Space responds correctly
