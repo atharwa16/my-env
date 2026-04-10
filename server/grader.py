@@ -75,4 +75,5 @@ def grade(*args, **kwargs) -> float:
     kw_score = _get_keyword_score(resp_snippet, keywords)
         
     final_score = (cat_score * 0.4) + (pri_score * 0.3) + (kw_score * 0.3)
-    return float(min(1.0, max(0.0, round(final_score, 3))))
+    # Strictly between 0 and 1 (not 0.0 or 1.0) per validator rules
+    return float(min(0.99, max(0.01, round(final_score, 3))))

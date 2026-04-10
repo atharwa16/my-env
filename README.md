@@ -127,10 +127,10 @@ The baseline agent (`inference.py`) achieved the following scores using `gemini-
 
 | Task ID | Difficulty | Score |
 |---------|------------|-------|
-| TKT-001 | Easy       | 1.00  |
-| TKT-002 | Medium     | 0.85  |
-| TKT-003 | Hard       | 0.90  |
-| **Average** |        | **0.92** |
+| TKT-001 | Easy       | 0.90  |
+| TKT-002 | Medium     | 0.47  |
+| TKT-003 | Hard       | 0.72  |
+| **Average** |        | **0.70** |
 
 ## Security
 **Never commit your API key to GitHub.**
